@@ -1,5 +1,4 @@
 from collections import deque
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Deque, Optional
 
@@ -8,42 +7,34 @@ import face_recognition
 import numpy as np
 from PIL import Image
 
-from facial_detection import FaceDetection
-
-
-@dataclass(frozen=True)
-class FaceRecognition:
-    detection: FaceDetection
-    label: Optional[str]
-
 
 class FaceRecognizer:
     def __init__(self):
         self.faces: dict[str, Deque[np.ndarray]] = {}
 
-    def label_face(self, face_detection: FaceDetection) -> FaceRecognition:
+    def label_face(self, face_image: np.ndarray) -> Optional[str]:
         # get latest encoding for each face
         known_encodings = [x[-1] for x in self.faces.values()]
 
         # perform face recognition
-        rgb_face_image = cv2.cvtColor(face_detection.face_image, cv2.COLOR_BGR2RGB)
+        rgb_face_image = cv2.cvtColor(face_image, cv2.COLOR_BGR2RGB)
         try:
             unknown_encoding = face_recognition.face_encodings(rgb_face_image)[0]
         except IndexError:  # no faces found
-            return FaceRecognition(face_detection, None)
+            return
         comparison = face_recognition.compare_faces(known_encodings, unknown_encoding)
 
         # face has been detected before, add the new encoding to its entry
         if any(comparison):
             name = list(self.faces)[comparison.index(True)]
             self.faces[name].append(unknown_encoding)
-            return FaceRecognition(face_detection, name)
+            return name
 
         # face has never been detected before, so create a new entry in faces
         new_name = f'person{len(self.faces)}'
         print(f'New face added: {new_name}')
         self.faces[new_name] = deque([unknown_encoding], maxlen=5)
-        return FaceRecognition(face_detection, new_name)
+        return new_name
 
     def load_face(self, face_name: str, face_image: np.ndarray):
         encoding = face_recognition.face_encodings(face_image)[0]
